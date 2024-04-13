@@ -1,8 +1,10 @@
+import { Logger } from '@nestjs/common';
 import {
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
+import { log } from 'console';
 import { Socket } from 'dgram';
 
 @WebSocketGateway(81, {
@@ -14,14 +16,19 @@ export class GameGateway {
   @WebSocketServer() server;
   private globalRoom = 'global';
   private defendTimeout = 1000;
+  private logger = new Logger('GameGateway');
 
   handleConnection(client: any, ...args: any[]) {
+    this.logger.log(`Client connected: ${client.id}`);
+    this.logger.log(client.handshake.query);
+
     client.join(this.globalRoom);
     client.broadcast.to(this.globalRoom).emit('join', { id: client.id });
   }
 
   @SubscribeMessage('move')
   handleMessage(client: any, payload: { x: number; y: number }) {
+    this.logger.log('move', payload);
     client.broadcast.to(this.globalRoom).emit('move', {
       id: client.id,
       x: payload.x,
@@ -45,5 +52,13 @@ export class GameGateway {
         .to(this.globalRoom)
         .emit('defend-end', { id: client.id });
     }, this.defendTimeout);
+  }
+
+  @SubscribeMessage('sum-score')
+  handleSumPoints(client: any, payload: { points: number }) {
+    client.broadcast.to(this.globalRoom).emit('sum-score', {
+      id: client.id,
+      points: payload.points,
+    });
   }
 }
