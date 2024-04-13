@@ -9,7 +9,7 @@ import { Socket } from 'dgram';
 
 @WebSocketGateway(81, {
   cors: {
-    origin: process.env.CORS_ORIGIN,
+    origin: '*',
   },
 })
 export class GameGateway {
