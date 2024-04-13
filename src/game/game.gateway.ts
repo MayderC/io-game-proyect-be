@@ -4,12 +4,12 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { log } from 'console';
+
 import { Socket } from 'dgram';
 
 @WebSocketGateway(81, {
   cors: {
-    origin: ['[http://localhost:3000', ''],
+    origin: process.env.CORS_ORIGIN,
   },
 })
 export class GameGateway {
