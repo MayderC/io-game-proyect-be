@@ -10,7 +10,7 @@ import {
 
 import { Socket } from 'dgram';
 
-@WebSocketGateway(81, {
+@WebSocketGateway(Number(process.env.PORT), {
   cors: {
     origin: '*',
     credentials: true,
