@@ -29,7 +29,7 @@ export class GameGateway
     client.broadcast.to(this.globalRoom).emit('leave', { id: client.id });
   }
   afterInit(server: any) {
-    this.logger.log('Init');
+    this.logger.log('Init on port: ' + (process.env.PORT || '80'));
   }
 
   handleConnection(client: any, ...args: any[]) {
