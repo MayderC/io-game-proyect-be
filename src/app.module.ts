@@ -9,6 +9,6 @@ import { ConfigModule } from '@nestjs/config';
     }),
   ],
   controllers: [],
-  providers: [GameService, GameGateway],
+  providers: [GameGateway, GameService],
 })
 export class AppModule {}

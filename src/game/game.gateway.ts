@@ -1,5 +1,8 @@
 import { Logger } from '@nestjs/common';
 import {
+  OnGatewayConnection,
+  OnGatewayDisconnect,
+  OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
@@ -8,13 +11,26 @@ import {
 import { Socket } from 'dgram';
 
 @WebSocketGateway(81, {
-  cors: true,
+  cors: {
+    origin: '*',
+    credentials: true,
+  },
 })
-export class GameGateway {
+export class GameGateway
+  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
+{
   @WebSocketServer() server;
   private globalRoom = 'global';
   private defendTimeout = 1000;
   private logger = new Logger('GameGateway');
+
+  handleDisconnect(client: any) {
+    this.logger.log(`Client disconnected: ${client.id}`);
+    client.broadcast.to(this.globalRoom).emit('leave', { id: client.id });
+  }
+  afterInit(server: any) {
+    this.logger.log('Init');
+  }
 
   handleConnection(client: any, ...args: any[]) {
     this.logger.log(`Client connected: ${client.id}`);
