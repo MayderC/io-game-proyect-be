@@ -4,16 +4,16 @@ import {
   OnGatewayDisconnect,
   OnGatewayInit,
   SubscribeMessage,
-  WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
 
 import { Socket } from 'dgram';
+import { WebSocketGateway } from '@nestjs/websockets';
 
-@WebSocketGateway(Number(process.env.PORT || '80'), {
+@WebSocketGateway({
   cors: {
     origin: '*',
-    credentials: true,
+    methods: ['GET', 'POST'],
   },
 })
 export class GameGateway
@@ -29,7 +29,11 @@ export class GameGateway
     client.broadcast.to(this.globalRoom).emit('leave', { id: client.id });
   }
   afterInit(server: any) {
-    this.logger.log('Init on port: ' + (process.env.PORT || '80'));
+    //server is a socket.io server
+    this.logger.log('Init on port: ');
+    console.log(server.eio.opts.cors);
+    //get websocket port
+    console.log(server.eio.opts);
   }
 
   handleConnection(client: any, ...args: any[]) {
