@@ -11,6 +11,12 @@ import { Socket } from 'dgram';
 import { WebSocketGateway } from '@nestjs/websockets';
 import { Player } from './Player.entity';
 
+export interface IPlayer {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+}
 @WebSocketGateway({
   cors: {
     origin: '*',
@@ -22,7 +28,7 @@ export class GameGateway implements OnGatewayDisconnect, OnGatewayInit {
   private globalRoom = 'global';
   private defendTimeout = 1000;
   private logger = new Logger('GameGateway');
-  private clients: Map<string, Player> = new Map();
+  private clients: Map<string, IPlayer> = new Map();
 
   handleDisconnect(client: any) {
     this.logger.log(`Client disconnected: ${client.id}`);
@@ -38,10 +44,9 @@ export class GameGateway implements OnGatewayDisconnect, OnGatewayInit {
   @SubscribeMessage('join')
   handleMessageJoin(client: any, payload: any) {
     client.join(this.globalRoom);
-    this.clients.set(client.id, payload.player);
-    client.broadcast
-      .to(this.globalRoom)
-      .emit('joined', { player: payload.player });
+
+    this.clients.set(client.id, payload);
+    client.broadcast.to(this.globalRoom).emit('joined', { player: payload });
   }
 
   @SubscribeMessage('move')
@@ -86,9 +91,11 @@ export class GameGateway implements OnGatewayDisconnect, OnGatewayInit {
 
   @SubscribeMessage('get-all-players')
   handleGetAllPlayers(client: any) {
-    const clients = Array.from(this.clients.values()).filter(
+    const data = Array.from(this.clients.values()).filter(
       (player) => player.id !== client.id,
     );
+
+    const clients = JSON.stringify(data);
 
     Logger.log(
       'get-all-players',
@@ -96,13 +103,14 @@ export class GameGateway implements OnGatewayDisconnect, OnGatewayInit {
     );
 
     client.emit('get-all-players', {
-      clients: [...clients],
+      clients: clients,
     });
   }
 
   @SubscribeMessage('leave')
-  handleLeave(client: any, payload: any) {
-    console.log('SE FUE', payload);
+  handleLeave(client: any) {
+    console.log('leave', client.id);
+    this.clients.delete(client.id);
     client.broadcast.to(this.globalRoom).emit('leave', { id: client.id });
   }
 }
