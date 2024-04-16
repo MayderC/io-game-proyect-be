@@ -9,6 +9,7 @@ import {
 
 import { Socket } from 'dgram';
 import { WebSocketGateway } from '@nestjs/websockets';
+import { Player } from './Player.entity';
 
 @WebSocketGateway({
   cors: {
@@ -16,41 +17,44 @@ import { WebSocketGateway } from '@nestjs/websockets';
     methods: ['GET', 'POST'],
   },
 })
-export class GameGateway
-  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
-{
+export class GameGateway implements OnGatewayDisconnect, OnGatewayInit {
   @WebSocketServer() server;
   private globalRoom = 'global';
   private defendTimeout = 1000;
   private logger = new Logger('GameGateway');
+  private clients: Map<string, Player> = new Map();
 
   handleDisconnect(client: any) {
     this.logger.log(`Client disconnected: ${client.id}`);
+
+    this.clients.delete(client.id);
     client.broadcast.to(this.globalRoom).emit('leave', { id: client.id });
   }
   afterInit(server: any) {
     //server is a socket.io server
     this.logger.log('Init on port: ');
-    console.log(server.eio.opts.cors);
-    //get websocket port
-    console.log(server.eio.opts);
   }
 
-  handleConnection(client: any, ...args: any[]) {
-    this.logger.log(`Client connected: ${client.id}`);
-    this.logger.log(client.handshake.query);
-
+  @SubscribeMessage('join')
+  handleMessageJoin(client: any, payload: any) {
     client.join(this.globalRoom);
-    client.broadcast.to(this.globalRoom).emit('join', { id: client.id });
+    this.clients.set(client.id, payload.player);
+    client.broadcast
+      .to(this.globalRoom)
+      .emit('joined', { player: payload.player });
   }
 
   @SubscribeMessage('move')
-  handleMessage(client: any, payload: { x: number; y: number }) {
+  handleMessage(
+    client: any,
+    payload: { x: number; y: number; direction: string },
+  ) {
     this.logger.log('move', payload);
     client.broadcast.to(this.globalRoom).emit('move', {
       id: client.id,
       x: payload.x,
       y: payload.y,
+      direction: payload.direction,
     });
   }
 
@@ -78,5 +82,27 @@ export class GameGateway
       id: client.id,
       points: payload.points,
     });
+  }
+
+  @SubscribeMessage('get-all-players')
+  handleGetAllPlayers(client: any) {
+    const clients = Array.from(this.clients.values()).filter(
+      (player) => player.id !== client.id,
+    );
+
+    Logger.log(
+      'get-all-players',
+      'SE CONECTO UNO NUEVO Y  NECESITA LOS JUGADORES',
+    );
+
+    client.emit('get-all-players', {
+      clients: [...clients],
+    });
+  }
+
+  @SubscribeMessage('leave')
+  handleLeave(client: any, payload: any) {
+    console.log('SE FUE', payload);
+    client.broadcast.to(this.globalRoom).emit('leave', { id: client.id });
   }
 }
