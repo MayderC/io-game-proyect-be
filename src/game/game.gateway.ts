@@ -1,6 +1,5 @@
 import { Logger } from '@nestjs/common';
 import {
-  OnGatewayConnection,
   OnGatewayDisconnect,
   OnGatewayInit,
   SubscribeMessage,
@@ -9,7 +8,6 @@ import {
 
 import { Socket } from 'dgram';
 import { WebSocketGateway } from '@nestjs/websockets';
-import { Player } from './Player.entity';
 
 export interface IPlayer {
   id: string;
@@ -29,6 +27,7 @@ export class GameGateway implements OnGatewayDisconnect, OnGatewayInit {
   private defendTimeout = 1000;
   private logger = new Logger('GameGateway');
   private clients: Map<string, IPlayer> = new Map();
+  private spawns: { x: number; y: number }[] = [];
 
   handleDisconnect(client: any) {
     this.logger.log(`Client disconnected: ${client.id}`);
@@ -38,6 +37,14 @@ export class GameGateway implements OnGatewayDisconnect, OnGatewayInit {
   }
   afterInit(server: any) {
     //server is a socket.io server
+
+    this.generateSpawns();
+
+    console.log('spawns', this.spawns);
+
+    this.clearCoins();
+    this.tickNewItems();
+
     this.logger.log('Init on port: ');
   }
 
@@ -83,10 +90,22 @@ export class GameGateway implements OnGatewayDisconnect, OnGatewayInit {
 
   @SubscribeMessage('sum-score')
   handleSumPoints(client: any, payload: { points: number }) {
+    this.logger.log('sum-score', payload);
+
     client.broadcast.to(this.globalRoom).emit('sum-score', {
       id: client.id,
       points: payload.points,
     });
+  }
+
+  private clearCoins() {
+    setInterval(() => {
+      this.spawns = [];
+      this.generateSpawns();
+      this.server.to(this.globalRoom).emit('reset-objects', {
+        positions: this.spawns,
+      });
+    }, 1000 * 60);
   }
 
   @SubscribeMessage('get-all-players')
@@ -99,18 +118,76 @@ export class GameGateway implements OnGatewayDisconnect, OnGatewayInit {
 
     Logger.log(
       'get-all-players',
-      'SE CONECTO UNO NUEVO Y  NECESITA LOS JUGADORES',
+      'SE CONECTO UNO NUEVO Y  NECESITA LOS JUGADORES Y OBJETOS',
     );
+
+    client.emit('get-objects', {
+      positions: this.spawns,
+    });
 
     client.emit('get-all-players', {
       clients: clients,
     });
   }
 
+  @SubscribeMessage('get-spawns')
+  handleSetSpawn(client: any) {}
+
+  private getRandomPosition() {
+    const margin = 16;
+    const mapWidth = 1280;
+    const mapHeight = 928;
+    const x = Math.random() * (mapWidth - 2 * margin) + margin;
+    const y = Math.random() * (mapHeight - 2 * margin) + margin;
+    return { x: Math.floor(x), y: Math.floor(y) };
+  }
+
+  private generateSpawns() {
+    let i = 0;
+    while (i < 10) {
+      this.spawns.push(this.getRandomPosition());
+      i++;
+    }
+  }
+
+  private tickNewItems() {
+    setInterval(() => {
+      const len = this.spawns.length;
+      // get random index from spawns
+      let indexRan = 0;
+      let coin = null;
+
+      do {
+        indexRan = Math.floor(Math.random() * len);
+        coin = this.spawns[indexRan];
+      } while (!coin);
+
+      this.spawns = this.spawns.filter((_, index) => index !== indexRan);
+      const cords = this.getRandomPosition();
+      this.spawns.push(cords);
+
+      this.server.to(this.globalRoom).emit('new-object', {
+        remove: { x: coin.x, y: coin.y },
+        ...cords,
+      });
+    }, 1000 * 4);
+  }
+
   @SubscribeMessage('leave')
   handleLeave(client: any) {
-    console.log('leave', client.id);
     this.clients.delete(client.id);
     client.broadcast.to(this.globalRoom).emit('leave', { id: client.id });
+  }
+
+  @SubscribeMessage('coin-collected')
+  handleCoinCollected(client: any, payload: { x: number; y: number }) {
+    this.spawns = this.spawns.filter(
+      (x) => x.x !== payload.x && x.y !== payload.y,
+    );
+
+    this.server.to(this.globalRoom).emit('remove-coin', {
+      x: payload.x,
+      y: payload.y,
+    });
   }
 }
