@@ -35,7 +35,7 @@ export class GameGateway implements OnGatewayDisconnect, OnGatewayInit {
     this.clients.delete(client.id);
     client.broadcast.to(this.globalRoom).emit('leave', { id: client.id });
   }
-  afterInit(server: any) {
+  afterInit(server) {
     //server is a socket.io server
 
     this.generateSpawns();
@@ -44,14 +44,12 @@ export class GameGateway implements OnGatewayDisconnect, OnGatewayInit {
 
     this.clearCoins();
     this.tickNewItems();
-
-    this.logger.log('Init on port: ');
   }
 
   @SubscribeMessage('join')
   handleMessageJoin(client: any, payload: any) {
     client.join(this.globalRoom);
-
+    console.log('join', payload);
     this.clients.set(client.id, payload);
     client.broadcast.to(this.globalRoom).emit('joined', { player: payload });
   }
@@ -99,13 +97,13 @@ export class GameGateway implements OnGatewayDisconnect, OnGatewayInit {
   }
 
   private clearCoins() {
-    setInterval(() => {
-      this.spawns = [];
-      this.generateSpawns();
-      this.server.to(this.globalRoom).emit('reset-objects', {
-        positions: this.spawns,
-      });
-    }, 1000 * 60);
+    // setInterval(() => {
+    //   this.spawns = [];
+    //   this.generateSpawns();
+    //   this.server.to(this.globalRoom).emit('reset-objects', {
+    //     positions: this.spawns,
+    //   });
+    // }, 1000 * 60);
   }
 
   @SubscribeMessage('get-all-players')
@@ -113,7 +111,7 @@ export class GameGateway implements OnGatewayDisconnect, OnGatewayInit {
     const data = Array.from(this.clients.values()).filter(
       (player) => player.id !== client.id,
     );
-
+    console.log(this.server)
     const clients = JSON.stringify(data);
 
     Logger.log(
@@ -152,8 +150,8 @@ export class GameGateway implements OnGatewayDisconnect, OnGatewayInit {
 
   private tickNewItems() {
     setInterval(() => {
+      if (this.server.clientsCount < 1) return;
       const len = this.spawns.length;
-      // get random index from spawns
       let indexRan = 0;
       let coin = null;
 
@@ -161,11 +159,9 @@ export class GameGateway implements OnGatewayDisconnect, OnGatewayInit {
         indexRan = Math.floor(Math.random() * len);
         coin = this.spawns[indexRan];
       } while (!coin);
-
       this.spawns = this.spawns.filter((_, index) => index !== indexRan);
       const cords = this.getRandomPosition();
       this.spawns.push(cords);
-
       this.server.to(this.globalRoom).emit('new-object', {
         remove: { x: coin.x, y: coin.y },
         ...cords,
